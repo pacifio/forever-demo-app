@@ -9,7 +9,6 @@ import ReactFlow, {
   Edge,
   useNodesState,
   useEdgesState,
-  addEdge,
   NodeTypes,
   Panel,
   ReactFlowProvider,
@@ -28,7 +27,22 @@ import {
   nodeTypeComponents,
   type CustomNodeType,
 } from "@/components/custom-nodes";
+import {
+  WebPreview,
+  WebPreviewBody,
+  WebPreviewNavigation,
+  WebPreviewUrl,
+} from "@/components/ai-elements/web-preview";
 import "reactflow/dist/style.css";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { LinkPreview } from "@/components/ui/link-preview";
 
 interface ExpansionOption {
   id: string;
@@ -64,6 +78,7 @@ interface NodeData {
   depth: number;
   type: "discovery" | CustomNodeType;
   url?: string;
+  onPreview?: (url: string, title: string) => void;
 }
 
 interface DiscoveryUpdate {
@@ -88,59 +103,323 @@ const DiscoveryNode = ({
   data: NodeData;
   selected: boolean;
 }) => {
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+
   return (
     <div
       className={cn(
-        "min-w-[280px] max-w-[320px] rounded-xl border bg-background shadow-lg transition-all cursor-pointer",
+        "min-w-[320px] max-w-[400px] rounded-2xl border border-white/10 bg-black/40 shadow-2xl backdrop-blur-3xl backdrop-saturate-150 transition-all cursor-pointer relative focus:ring-0",
         selected
-          ? "border-primary ring-2 ring-primary/20"
-          : "border-border hover:border-primary/50"
+          ? "ring-2 ring-white/30 border-white/20"
+          : "hover:border-white/20"
       )}
     >
-      {/* Input handle (left side) for incoming connections */}
+      {/* Inner glow effect */}
+      <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-white/5 to-transparent opacity-50 pointer-events-none" />
+
       <Handle
         type="target"
         position={Position.Left}
-        style={{ background: "#64748b", width: 8, height: 8 }}
+        style={{ background: "white", width: 8, height: 8, opacity: 0.5 }}
       />
-
-      {/* Output handle (right side) for outgoing connections */}
       <Handle
         type="source"
         position={Position.Right}
-        style={{ background: "#64748b", width: 8, height: 8 }}
+        style={{ background: "white", width: 8, height: 8, opacity: 0.5 }}
       />
 
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-          <Search className="h-4 w-4 text-primary" />
+      {/* Header */}
+      <div className="relative flex items-center gap-3 border-b border-white/10 px-4 py-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm">
+          <Search className="h-4 w-4 text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-foreground truncate">
+          <div className="text-sm font-semibold text-white truncate">
             {data.query}
           </div>
-          <div className="text-xs text-muted-foreground">
-            Depth {data.depth}
-          </div>
+          <div className="text-xs text-white/50">Depth {data.depth}</div>
         </div>
         {data.loading && (
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground flex-shrink-0" />
+          <Loader2 className="h-4 w-4 animate-spin text-white/70 flex-shrink-0" />
         )}
       </div>
 
+      {/* Summary with Markdown - Collapsible with Preview */}
       {data.summary && (
-        <div className="px-4 py-3">
-          <p className="line-clamp-3 text-sm text-muted-foreground">
-            {data.summary}
-          </p>
+        <div className="relative border-b border-white/10">
+          <Accordion
+            type="single"
+            collapsible
+            className="w-full"
+            onValueChange={(value) => setIsSummaryOpen(value === "summary")}
+          >
+            <AccordionItem value="summary" className="border-0">
+              {/* Preview - shown when collapsed */}
+              {!isSummaryOpen && (
+                <div className="px-4 py-3">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      // Simplified components for preview
+                      h1: ({ node, ...props }) => (
+                        <span className="font-bold text-white" {...props} />
+                      ),
+                      h2: ({ node, ...props }) => (
+                        <span className="font-semibold text-white" {...props} />
+                      ),
+                      h3: ({ node, ...props }) => (
+                        <span className="font-semibold text-white" {...props} />
+                      ),
+                      h4: ({ node, ...props }) => (
+                        <span className="font-medium text-white" {...props} />
+                      ),
+                      h5: ({ node, ...props }) => (
+                        <span className="font-medium text-white" {...props} />
+                      ),
+                      h6: ({ node, ...props }) => (
+                        <span
+                          className="font-medium text-white/90"
+                          {...props}
+                        />
+                      ),
+                      p: ({ node, ...props }) => (
+                        <span
+                          className="text-white/80 line-clamp-3"
+                          {...props}
+                        />
+                      ),
+                      strong: ({ node, ...props }) => (
+                        <strong
+                          className="font-semibold text-white"
+                          {...props}
+                        />
+                      ),
+                      em: ({ node, ...props }) => (
+                        <em className="italic text-white/90" {...props} />
+                      ),
+                      a: ({ node, ...props }) => (
+                        <span className="text-blue-400" {...props} />
+                      ),
+                      code: ({ node, ...props }) => (
+                        <code
+                          className="text-xs text-blue-300 bg-white/10 px-1 py-0.5 rounded font-mono"
+                          {...props}
+                        />
+                      ),
+                      ul: ({ node, ...props }) => <span {...props} />,
+                      ol: ({ node, ...props }) => <span {...props} />,
+                      li: ({ node, ...props }) => <span {...props} />,
+                      blockquote: ({ node, ...props }) => (
+                        <span className="italic text-white/70" {...props} />
+                      ),
+                      pre: ({ node, ...props }) => <span {...props} />,
+                      table: ({ node, ...props }) => <span {...props} />,
+                      thead: ({ node, ...props }) => <span {...props} />,
+                      tbody: ({ node, ...props }) => <span {...props} />,
+                      tr: ({ node, ...props }) => <span {...props} />,
+                      th: ({ node, ...props }) => <span {...props} />,
+                      td: ({ node, ...props }) => <span {...props} />,
+                      hr: () => null,
+                    }}
+                  >
+                    {data.summary}
+                  </ReactMarkdown>
+                </div>
+              )}
+
+              <AccordionTrigger className="px-4 py-2 text-xs font-medium text-white/70 hover:text-white hover:no-underline border-t border-white/5">
+                {isSummaryOpen ? "Show less" : "Read more"}
+              </AccordionTrigger>
+
+              <AccordionContent className="px-4 pb-3">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    // Headings
+                    h1: ({ node, ...props }) => (
+                      <h1
+                        className="text-lg font-bold text-white mb-2 mt-4 first:mt-0"
+                        {...props}
+                      />
+                    ),
+                    h2: ({ node, ...props }) => (
+                      <h2
+                        className="text-base font-semibold text-white mb-2 mt-3 first:mt-0"
+                        {...props}
+                      />
+                    ),
+                    h3: ({ node, ...props }) => (
+                      <h3
+                        className="text-sm font-semibold text-white mb-1.5 mt-2 first:mt-0"
+                        {...props}
+                      />
+                    ),
+                    h4: ({ node, ...props }) => (
+                      <h4
+                        className="text-sm font-medium text-white mb-1.5 mt-2 first:mt-0"
+                        {...props}
+                      />
+                    ),
+                    h5: ({ node, ...props }) => (
+                      <h5
+                        className="text-xs font-medium text-white mb-1 mt-2 first:mt-0"
+                        {...props}
+                      />
+                    ),
+                    h6: ({ node, ...props }) => (
+                      <h6
+                        className="text-xs font-medium text-white/90 mb-1 mt-2 first:mt-0"
+                        {...props}
+                      />
+                    ),
+
+                    // Paragraphs and text
+                    p: ({ node, ...props }) => (
+                      <p
+                        className="text-sm text-white/80 leading-relaxed mb-3 last:mb-0"
+                        {...props}
+                      />
+                    ),
+                    strong: ({ node, ...props }) => (
+                      <strong className="font-semibold text-white" {...props} />
+                    ),
+                    em: ({ node, ...props }) => (
+                      <em className="italic text-white/90" {...props} />
+                    ),
+
+                    // Links
+                    a: ({ node, ...props }) => (
+                      <a
+                        className="text-blue-400 hover:text-blue-300 underline decoration-blue-400/30 hover:decoration-blue-300 transition-colors"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        {...props}
+                      />
+                    ),
+
+                    // Lists
+                    ul: ({ node, ...props }) => (
+                      <ul
+                        className="text-sm text-white/80 space-y-1 mb-3 ml-4 list-disc marker:text-white/50"
+                        {...props}
+                      />
+                    ),
+                    ol: ({ node, ...props }) => (
+                      <ol
+                        className="text-sm text-white/80 space-y-1 mb-3 ml-4 list-decimal marker:text-white/50"
+                        {...props}
+                      />
+                    ),
+                    li: ({ node, ...props }) => (
+                      <li
+                        className="text-white/80 leading-relaxed"
+                        {...props}
+                      />
+                    ),
+
+                    // Code
+                    code: ({ node, ...props }) => (
+                      <code
+                        className="block text-xs text-blue-300 bg-white/5 p-3 rounded-lg border border-white/10 font-mono overflow-x-auto"
+                        {...props}
+                      />
+                    ),
+                    pre: ({ node, ...props }) => (
+                      <pre className="mb-3 last:mb-0" {...props} />
+                    ),
+
+                    // Blockquotes
+                    blockquote: ({ node, ...props }) => (
+                      <blockquote
+                        className="border-l-2 border-white/30 pl-3 py-1 my-3 text-white/70 italic"
+                        {...props}
+                      />
+                    ),
+
+                    // Horizontal rule
+                    hr: ({ node, ...props }) => (
+                      <hr className="border-white/10 my-4" {...props} />
+                    ),
+
+                    // Tables
+                    table: ({ node, ...props }) => (
+                      <div className="overflow-x-auto mb-3">
+                        <table
+                          className="w-full text-sm border-collapse"
+                          {...props}
+                        />
+                      </div>
+                    ),
+                    thead: ({ node, ...props }) => (
+                      <thead className="border-b border-white/20" {...props} />
+                    ),
+                    tbody: ({ node, ...props }) => (
+                      <tbody className="divide-y divide-white/10" {...props} />
+                    ),
+                    tr: ({ node, ...props }) => <tr {...props} />,
+                    th: ({ node, ...props }) => (
+                      <th
+                        className="px-3 py-2 text-left text-white font-semibold"
+                        {...props}
+                      />
+                    ),
+                    td: ({ node, ...props }) => (
+                      <td className="px-3 py-2 text-white/80" {...props} />
+                    ),
+                  }}
+                >
+                  {data.summary}
+                </ReactMarkdown>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
       )}
 
+      {/* Expansions Accordion */}
       {data.expansions && data.expansions.length > 0 && !data.loading && (
-        <div className="border-t border-border px-4 py-2">
-          <div className="text-xs font-medium text-muted-foreground">
-            {data.expansions.length} next steps available
-          </div>
+        <div className="relative">
+          <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="expansions" className="border-0">
+              <AccordionTrigger className="px-4 py-3 text-xs font-medium text-white/70 hover:text-white hover:no-underline">
+                <span className="flex items-center gap-2">
+                  <span>{data.expansions.length} next steps available</span>
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="pb-3">
+                <div className="">
+                  {data.expansions.map((expansion) => (
+                    <div
+                      key={expansion.id}
+                      className="group border border-white/10 bg-white/5 p-3 transition-all hover:bg-white/10 hover:border-white/20"
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="text-sm font-medium text-white flex-1">
+                          {expansion.query}
+                        </div>
+                        <div className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm whitespace-nowrap">
+                          {(expansion.score * 100).toFixed(0)}%
+                        </div>
+                      </div>
+                      <div className="text-xs text-white/60 mb-2">
+                        {expansion.rationale}
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-white/50">
+                        <span className="rounded-full bg-white/5 px-2 py-0.5">
+                          {expansion.action.type}
+                        </span>
+                        {expansion.autoExpand && (
+                          <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-blue-300">
+                            Auto-expand
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
       )}
     </div>
@@ -194,14 +473,20 @@ function DiscoveryCanvas() {
   const [query, setQuery] = useState("");
   const [selectedNode, setSelectedNode] = useState<Node<NodeData> | null>(null);
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
+  const [webPreviewOpen, setWebPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [previewTitle, setPreviewTitle] = useState("");
   const autoExpandedRef = useRef(new Set<string>());
 
-  console.log("[ReactFlow State] Current state:", {
-    nodeCount: nodes.length,
-    edgeCount: edges.length,
-    nodeIds: nodes.map((n) => n.id),
-    edgeIds: edges.map((e) => `${e.source}->${e.target}`),
-  });
+  const handlePreviewClick = useCallback((url: string, title: string) => {
+    console.log("[handlePreviewClick] Opening preview:", { url, title });
+
+    // Close side panel if open, then open web preview
+    setSidePanelOpen(false);
+    setPreviewUrl(url);
+    setPreviewTitle(title);
+    setWebPreviewOpen(true);
+  }, []);
 
   const createMediaNodes = useCallback(
     (parentNode: Node<NodeData>, parentId: string) => {
@@ -222,7 +507,6 @@ function DiscoveryCanvas() {
 
       topResults.forEach((result, index) => {
         const nodeType = determineNodeType(result.url, result.title);
-
         const yPosition = baseY + (index === 0 ? -80 : 80);
 
         const mediaNode: Node<NodeData> = {
@@ -238,6 +522,7 @@ function DiscoveryCanvas() {
             sessionId,
             depth: parentNode.data.depth + 1,
             type: nodeType,
+            onPreview: handlePreviewClick,
           },
         };
 
@@ -262,15 +547,11 @@ function DiscoveryCanvas() {
       });
 
       if (mediaNodes.length > 0) {
-        setNodes((nds) => {
-          return [...nds, ...mediaNodes];
-        });
-        setEdges((eds) => {
-          return [...eds, ...mediaEdges];
-        });
+        setNodes((nds) => [...nds, ...mediaNodes]);
+        setEdges((eds) => [...eds, ...mediaEdges]);
       }
     },
-    [sessionId, setNodes, setEdges]
+    [sessionId, setNodes, setEdges, handlePreviewClick]
   );
 
   const getEdgeColorForType = (type: string): string => {
@@ -323,9 +604,7 @@ function DiscoveryCanvas() {
         },
       };
 
-      setNodes((nds) => {
-        return [...nds, newNode];
-      });
+      setNodes((nds) => [...nds, newNode]);
 
       if (parentId) {
         const newEdge: Edge = {
@@ -334,14 +613,11 @@ function DiscoveryCanvas() {
           target: nodeId,
           type: "smoothstep",
           animated: true,
-          style: { stroke: "#64748b", strokeWidth: 2.5 },
-          markerEnd: { type: MarkerType.ArrowClosed, color: "#64748b" },
+          style: { stroke: "white", strokeWidth: 2.5 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: "white" },
         };
 
-        setEdges((eds) => {
-          const newEdges = [...eds, newEdge];
-          return newEdges;
-        });
+        setEdges((eds) => [...eds, newEdge]);
       }
 
       const response = await fetch("http://localhost:8081/api/discover", {
@@ -427,8 +703,8 @@ function DiscoveryCanvas() {
               );
 
               if (update.type === "complete" && parentId) {
-                setEdges((eds) => {
-                  const updatedEdges = eds.map((edge) => {
+                setEdges((eds) =>
+                  eds.map((edge) => {
                     if (edge.id === `edge-${parentId}-${nodeId}`) {
                       return {
                         ...edge,
@@ -436,9 +712,8 @@ function DiscoveryCanvas() {
                       };
                     }
                     return edge;
-                  });
-                  return updatedEdges;
-                });
+                  })
+                );
               }
             } catch (e) {}
           }
@@ -464,9 +739,9 @@ function DiscoveryCanvas() {
         depth === 0 &&
         !autoExpandedRef.current.has(nodeId)
       ) {
-        const autoExpandOption = completedNodeData.expansions?.find(
-          (exp) => exp.autoExpand
-        );
+        const autoExpandOption = (
+          completedNodeData as NodeData
+        ).expansions?.find((exp) => exp.autoExpand);
 
         if (autoExpandOption) {
           autoExpandedRef.current.add(nodeId);
@@ -512,11 +787,18 @@ function DiscoveryCanvas() {
 
   const handleNodeClick = useCallback(
     (event: React.MouseEvent, node: Node<NodeData>) => {
-      if (node.data.type !== "discovery") return;
-      setSelectedNode(node);
-      setSidePanelOpen(true);
+      // Discovery nodes open side panel
+      if (node.data.type === "discovery") {
+        setWebPreviewOpen(false);
+        setSelectedNode(node);
+        setSidePanelOpen(true);
+      }
+      // Custom nodes open web preview
+      else if (node.data.url) {
+        handlePreviewClick(node.data.url, node.data.query);
+      }
     },
-    []
+    [handlePreviewClick]
   );
 
   const handleExpansionClick = (expansion: ExpansionOption) => {
@@ -544,7 +826,7 @@ function DiscoveryCanvas() {
   };
 
   return (
-    <div className="relative h-screen w-full">
+    <div className="relative h-screen w-full bg-[#080806]">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -558,161 +840,318 @@ function DiscoveryCanvas() {
         defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
         proOptions={{ hideAttribution: true }}
       >
-        <Background gap={16} size={1} className="bg-muted/30" />
-        <Controls className="rounded-lg border border-border bg-background shadow-lg" />
-        <MiniMap
+        <Background gap={16} size={0.8} className="bg-[#0D0D0A]" />
+        {/* <Controls className="rounded-lg border border-border bg-background shadow-lg" /> */}
+        {/* <MiniMap
           className="rounded-lg border border-border bg-background shadow-lg"
           nodeColor={(node) => {
             if (node.data?.loading) return "#f59e0b";
             return getEdgeColorForType(node.type || "discovery");
           }}
-        />
+        /> */}
 
         <Panel position="top-center" className="pointer-events-none mt-4">
           <div className="flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2 shadow-lg">
             <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">Discovery Canvas</span>
-            <span className="text-xs text-muted-foreground">
-              {nodes.length} {nodes.length === 1 ? "node" : "nodes"}
+            <span className="text-sm font-medium">
+              Discovered {nodes.length} {nodes.length === 1 ? "node" : "nodes"}
             </span>
+            {/* <span className="text-xs text-muted-foreground">
+              {nodes.length} {nodes.length === 1 ? "node" : "nodes"}
+            </span> */}
           </div>
         </Panel>
       </ReactFlow>
 
-      <div className="pointer-events-auto absolute bottom-0 left-0 right-0 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="pointer-events-auto absolute bottom-0 left-0 right-0">
         <div className="mx-auto max-w-3xl p-4">
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Ask anything to start discovering..."
-              className="flex-1"
-              disabled={discoverMutation.isPending}
-            />
-            <Button
-              type="submit"
-              disabled={!query.trim() || discoverMutation.isPending}
-            >
-              {discoverMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Discovering
-                </>
-              ) : (
-                <>
-                  <Search className="mr-2 h-4 w-4" />
-                  Discover
-                </>
-              )}
-            </Button>
-          </form>
+          {/* Glass morphism container - darker variant */}
+          <div className="relative rounded-[20px] border border-white/10 bg-black/40 p-1 shadow-2xl backdrop-blur-2xl backdrop-saturate-150">
+            {/* Inner glow effect */}
+            <div className="absolute inset-0 rounded-[20px] bg-gradient-to-b from-white/5 to-transparent opacity-50" />
+
+            <form onSubmit={handleSubmit} className="relative flex gap-2">
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Ask anything to start discovering..."
+                className="flex-1 rounded-full border-0 bg-transparent text-white placeholder:text-white/50 focus-visible:ring-0 focus-visible:ring-offset-0"
+                disabled={discoverMutation.isPending}
+              />
+              <Button
+                type="submit"
+                size={"icon"}
+                className="rounded-full bg-white/10 text-white backdrop-blur-sm hover:bg-white/20"
+                disabled={!query.trim() || discoverMutation.isPending}
+              >
+                {discoverMutation.isPending ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <Search className="" />
+                )}
+              </Button>
+            </form>
+          </div>
         </div>
       </div>
 
+      {/* Discovery Node Details Panel */}
       {sidePanelOpen && selectedNode && (
-        <div className="absolute right-0 top-0 h-full w-[400px] border-l border-border bg-background shadow-2xl">
-          <div className="flex h-full flex-col">
-            {/* <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <div>
-                <h2 className="text-sm font-semibold">Node Details</h2>
-                <p className="text-xs text-muted-foreground">
-                  Depth {selectedNode.data.depth}
-                </p>
-              </div>
-              
-            </div> */}
+        <div className="absolute right-0 top-0 h-full w-100 border-l border-white/10 bg-black/40 backdrop-blur-2xl backdrop-saturate-150 shadow-2xl z-10">
+          {/* Inner glow effect */}
+          <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-50 pointer-events-none" />
 
+          <div className="flex h-full flex-col relative">
             <ScrollArea className="flex-1 h-screen relative">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
-                onClick={() => setSidePanelOpen(false)}
-                className="absolute top-2 right-4 z-10 rounded-full"
+                onClick={() => {
+                  setSidePanelOpen(false);
+                  setSelectedNode(null);
+                }}
+                className="absolute top-3 right-3 z-10 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/10 text-white h-7 w-7"
               >
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
               </Button>
 
-              <div className="p-4 space-y-4">
-                <div className="mt-2">
-                  <h3 className="text-lg font-medium mb-2">Query</h3>
-                  <p className="text-sm text-muted-foreground">
+              <div className="p-4 space-y-4 w-100 pt-4">
+                {/* Query Section */}
+                <div>
+                  <h3 className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-1.5">
+                    Query
+                  </h3>
+                  <p className="text-sm text-white/90 leading-snug w-3/4">
                     {selectedNode.data.query}
                   </p>
                 </div>
 
+                {/* Summary Section with Markdown */}
                 {selectedNode.data.summary && (
                   <div>
-                    <h3 className="text-lg font-medium mb-2">Summary</h3>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    <h3 className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-2">
+                      Summary
+                    </h3>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        h1: ({ node, ...props }) => (
+                          <h1
+                            className="text-base font-bold text-white mb-1.5 mt-2 first:mt-0"
+                            {...props}
+                          />
+                        ),
+                        h2: ({ node, ...props }) => (
+                          <h2
+                            className="text-sm font-semibold text-white mb-1.5 mt-2 first:mt-0"
+                            {...props}
+                          />
+                        ),
+                        h3: ({ node, ...props }) => (
+                          <h3
+                            className="text-xs font-semibold text-white mb-1 mt-1.5 first:mt-0"
+                            {...props}
+                          />
+                        ),
+                        h4: ({ node, ...props }) => (
+                          <h4
+                            className="text-xs font-medium text-white mb-1 mt-1.5 first:mt-0"
+                            {...props}
+                          />
+                        ),
+                        h5: ({ node, ...props }) => (
+                          <h5
+                            className="text-xs font-medium text-white mb-1 mt-1.5 first:mt-0"
+                            {...props}
+                          />
+                        ),
+                        h6: ({ node, ...props }) => (
+                          <h6
+                            className="text-xs font-medium text-white/90 mb-1 mt-1.5 first:mt-0"
+                            {...props}
+                          />
+                        ),
+                        p: ({ node, ...props }) => (
+                          <p
+                            className="text-xs text-white/80 leading-relaxed mb-2 last:mb-0"
+                            {...props}
+                          />
+                        ),
+                        strong: ({ node, ...props }) => (
+                          <strong
+                            className="font-semibold text-white"
+                            {...props}
+                          />
+                        ),
+                        em: ({ node, ...props }) => (
+                          <em className="italic text-white/90" {...props} />
+                        ),
+                        a: ({ node, ...props }) => (
+                          <a
+                            className="text-blue-400 hover:text-blue-300 underline decoration-blue-400/30 hover:decoration-blue-300 transition-colors"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            {...props}
+                          />
+                        ),
+                        ul: ({ node, ...props }) => (
+                          <ul
+                            className="text-xs text-white/80 space-y-0.5 mb-2 ml-3 list-disc marker:text-white/50"
+                            {...props}
+                          />
+                        ),
+                        ol: ({ node, ...props }) => (
+                          <ol
+                            className="text-xs text-white/80 space-y-0.5 mb-2 ml-3 list-decimal marker:text-white/50"
+                            {...props}
+                          />
+                        ),
+                        li: ({ node, ...props }) => (
+                          <li
+                            className="text-white/80 leading-relaxed"
+                            {...props}
+                          />
+                        ),
+                        code: ({ node, ...props }) => (
+                          <code
+                            className="block text-[10px] text-blue-300 bg-white/5 p-2 rounded-lg border border-white/10 font-mono overflow-x-auto"
+                            {...props}
+                          />
+                        ),
+                        pre: ({ node, ...props }) => (
+                          <pre className="mb-2 last:mb-0" {...props} />
+                        ),
+                        blockquote: ({ node, ...props }) => (
+                          <blockquote
+                            className="border-l-2 border-white/30 pl-2 py-0.5 my-2 text-white/70 italic text-xs"
+                            {...props}
+                          />
+                        ),
+                        hr: ({ node, ...props }) => (
+                          <hr className="border-white/10 my-2" {...props} />
+                        ),
+                        table: ({ node, ...props }) => (
+                          <div className="overflow-x-auto mb-2">
+                            <table
+                              className="w-full text-xs border-collapse"
+                              {...props}
+                            />
+                          </div>
+                        ),
+                        thead: ({ node, ...props }) => (
+                          <thead
+                            className="border-b border-white/20"
+                            {...props}
+                          />
+                        ),
+                        tbody: ({ node, ...props }) => (
+                          <tbody
+                            className="divide-y divide-white/10"
+                            {...props}
+                          />
+                        ),
+                        tr: ({ node, ...props }) => <tr {...props} />,
+                        th: ({ node, ...props }) => (
+                          <th
+                            className="px-2 py-1 text-left text-white font-semibold"
+                            {...props}
+                          />
+                        ),
+                        td: ({ node, ...props }) => (
+                          <td className="px-2 py-1 text-white/80" {...props} />
+                        ),
+                      }}
+                    >
                       {selectedNode.data.summary}
-                    </p>
+                    </ReactMarkdown>
                   </div>
                 )}
 
+                {/* Sources Section with LinkPreview */}
                 {selectedNode.data.searchResults &&
                   selectedNode.data.searchResults.length > 0 && (
                     <div>
-                      <h3 className="text-sm font-medium mb-2">Sources</h3>
-                      <div className="space-y-2">
+                      <h3 className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-2">
+                        Sources
+                      </h3>
+                      <div className="space-y-1.5">
                         {selectedNode.data.searchResults.map((result, i) => (
-                          <a
+                          <LinkPreview
                             key={i}
-                            href={result.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block p-2 rounded-md border border-border hover:bg-muted transition-colors"
+                            url={result.url}
+                            className="block p-2.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all backdrop-blur-sm group"
                           >
                             <div className="flex items-start gap-2">
-                              <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-white/10 flex-shrink-0">
+                                <ExternalLink className="h-3 w-3 text-white/70 group-hover:text-white transition-colors" />
+                              </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">
+                                <p className="text-xs font-medium text-white truncate mb-0.5">
                                   {result.title}
                                 </p>
-                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                <p className="text-[10px] text-white/60 line-clamp-2 leading-relaxed">
                                   {result.description}
                                 </p>
                               </div>
                             </div>
-                          </a>
+                          </LinkPreview>
                         ))}
                       </div>
                     </div>
                   )}
 
+                {/* Generated Code Section */}
                 {selectedNode.data.generatedCode && (
                   <div>
-                    <h3 className="text-sm font-medium mb-2">Generated Code</h3>
-                    <div className="rounded-md bg-muted p-3 overflow-x-auto">
-                      <code className="text-xs font-mono">
+                    <h3 className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-2">
+                      Generated Code
+                    </h3>
+                    <div className="rounded-lg border border-white/10 bg-white/5 p-2.5 overflow-x-auto backdrop-blur-sm">
+                      <code className="text-[10px] font-mono text-blue-300 block whitespace-pre">
                         {selectedNode.data.generatedCode.code}
                       </code>
                     </div>
                   </div>
                 )}
 
+                {/* Next Steps Section */}
                 {selectedNode.data.expansions &&
                   selectedNode.data.expansions.length > 0 && (
                     <div>
-                      <h3 className="text-sm font-medium mb-2">Next Steps</h3>
-                      <div className="space-y-2">
-                        {selectedNode.data.expansions.map((exp) => (
+                      <h3 className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-2">
+                        Next Steps
+                      </h3>
+                      <div className="rounded-lg border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden divide-y divide-white/10">
+                        {selectedNode.data.expansions.map((exp, index) => (
                           <button
                             key={exp.id}
                             onClick={() => handleExpansionClick(exp)}
-                            className="w-full text-left p-3 rounded-md border border-border hover:bg-muted transition-colors"
+                            className="w-full text-left p-2.5 hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
                             disabled={discoverMutation.isPending}
                           >
-                            <div className="flex items-start justify-between gap-2 mb-1">
-                              <p className="text-sm font-medium flex-1">
+                            <div className="flex items-start justify-between gap-2 mb-1.5">
+                              <p className="text-xs font-medium text-white flex-1 group-hover:text-white transition-colors leading-snug">
                                 {exp.query}
                               </p>
-                              <span className="text-xs font-semibold text-primary flex-shrink-0">
+                              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[9px] font-semibold text-white backdrop-blur-sm flex-shrink-0">
                                 {Math.round(exp.score * 100)}%
                               </span>
                             </div>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-[10px] text-white/60 leading-relaxed mb-2">
                               {exp.userBenefit}
                             </p>
+
+                            {/* Action type pill */}
+                            <div className="flex items-center gap-1.5">
+                              <span className="rounded-full bg-white/5 px-2 py-0.5 text-[9px] text-white/50">
+                                {exp.action.type}
+                              </span>
+                              {exp.autoExpand && (
+                                <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[9px] text-blue-300">
+                                  Auto-expand
+                                </span>
+                              )}
+                            </div>
                           </button>
                         ))}
                       </div>
@@ -720,6 +1159,30 @@ function DiscoveryCanvas() {
                   )}
               </div>
             </ScrollArea>
+          </div>
+        </div>
+      )}
+
+      {/* Web Preview Panel - 80% width */}
+      {webPreviewOpen && (
+        <div className="absolute right-0 top-0 h-full w-[60%] border-l border-border bg-background shadow-2xl z-20">
+          <div className="flex h-full flex-col">
+            <div className="flex-1 overflow-hidden">
+              <WebPreview defaultUrl={previewUrl} className="h-full">
+                <WebPreviewNavigation>
+                  <WebPreviewUrl />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 flex-shrink-0 rounded-full"
+                    onClick={() => setWebPreviewOpen(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </WebPreviewNavigation>
+                <WebPreviewBody src={previewUrl} />
+              </WebPreview>
+            </div>
           </div>
         </div>
       )}
