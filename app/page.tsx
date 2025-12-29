@@ -1,10 +1,8 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import ReactFlow, {
   Background,
-  Controls,
-  MiniMap,
   Node,
   Edge,
   useNodesState,
@@ -18,7 +16,15 @@ import ReactFlow, {
   Position,
 } from "reactflow";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Search, Sparkles, X, ExternalLink } from "lucide-react";
+import {
+  Loader2,
+  Search,
+  Sparkles,
+  X,
+  ExternalLink,
+  Play,
+  Square,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -114,7 +120,6 @@ const DiscoveryNode = ({
           : "hover:border-white/20"
       )}
     >
-      {/* Inner glow effect */}
       <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-white/5 to-transparent opacity-50 pointer-events-none" />
 
       <Handle
@@ -128,7 +133,6 @@ const DiscoveryNode = ({
         style={{ background: "white", width: 8, height: 8, opacity: 0.5 }}
       />
 
-      {/* Header */}
       <div className="relative flex items-center gap-3 border-b border-white/10 px-4 py-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm">
           <Search className="h-4 w-4 text-white" />
@@ -144,7 +148,6 @@ const DiscoveryNode = ({
         )}
       </div>
 
-      {/* Summary with Markdown - Collapsible with Preview */}
       {data.summary && (
         <div className="relative border-b border-white/10">
           <Accordion
@@ -154,7 +157,6 @@ const DiscoveryNode = ({
             onValueChange={(value) => setIsSummaryOpen(value === "summary")}
           >
             <AccordionItem value="summary" className="border-0">
-              {/* Preview - shown when collapsed */}
               {!isSummaryOpen && (
                 <div className="px-4 py-3">
                   <ReactMarkdown
@@ -226,11 +228,9 @@ const DiscoveryNode = ({
                   </ReactMarkdown>
                 </div>
               )}
-
               <AccordionTrigger className="px-4 py-2 text-xs font-medium text-white/70 hover:text-white hover:no-underline border-t border-white/5">
                 {isSummaryOpen ? "Show less" : "Read more"}
               </AccordionTrigger>
-
               <AccordionContent className="px-4 pb-3">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
@@ -376,18 +376,15 @@ const DiscoveryNode = ({
         </div>
       )}
 
-      {/* Expansions Accordion */}
       {data.expansions && data.expansions.length > 0 && !data.loading && (
         <div className="relative">
           <Accordion type="single" collapsible className="w-full">
             <AccordionItem value="expansions" className="border-0">
               <AccordionTrigger className="px-4 py-3 text-xs font-medium text-white/70 hover:text-white hover:no-underline">
-                <span className="flex items-center gap-2">
-                  <span>{data.expansions.length} next steps available</span>
-                </span>
+                <span>{data.expansions.length} next steps available</span>
               </AccordionTrigger>
               <AccordionContent className="pb-3">
-                <div className="">
+                <div>
                   {data.expansions.map((expansion) => (
                     <div
                       key={expansion.id}
@@ -478,10 +475,14 @@ function DiscoveryCanvas() {
   const [previewTitle, setPreviewTitle] = useState("");
   const autoExpandedRef = useRef(new Set<string>());
 
-  const handlePreviewClick = useCallback((url: string, title: string) => {
-    console.log("[handlePreviewClick] Opening preview:", { url, title });
+  // Auto-play state
+  const [isAutoPlaying, setIsAutoPlaying] = useState(false);
+  const [autoPlayState, setAutoPlayState] = useState<"playing" | "stopped">(
+    "stopped"
+  );
+  const [autoExpandCount, setAutoExpandCount] = useState(0);
 
-    // Close side panel if open, then open web preview
+  const handlePreviewClick = useCallback((url: string, title: string) => {
     setSidePanelOpen(false);
     setPreviewUrl(url);
     setPreviewTitle(title);
@@ -499,10 +500,8 @@ function DiscoveryCanvas() {
 
       const mediaNodes: Node<NodeData>[] = [];
       const mediaEdges: Edge[] = [];
-
       const baseY = parentNode.position.y;
       const offsetX = 380;
-
       const topResults = parentNode.data.searchResults.slice(0, 2);
 
       topResults.forEach((result, index) => {
@@ -512,10 +511,7 @@ function DiscoveryCanvas() {
         const mediaNode: Node<NodeData> = {
           id: `${nodeType}-${parentId}-${index}`,
           type: nodeType,
-          position: {
-            x: parentNode.position.x + offsetX,
-            y: yPosition,
-          },
+          position: { x: parentNode.position.x + offsetX, y: yPosition },
           data: {
             query: result.title,
             url: result.url,
@@ -595,13 +591,7 @@ function DiscoveryCanvas() {
         id: nodeId,
         type: "discovery",
         position,
-        data: {
-          query,
-          loading: true,
-          sessionId,
-          depth,
-          type: "discovery",
-        },
+        data: { query, loading: true, sessionId, depth, type: "discovery" },
       };
 
       setNodes((nds) => [...nds, newNode]);
@@ -616,7 +606,6 @@ function DiscoveryCanvas() {
           style: { stroke: "white", strokeWidth: 2.5 },
           markerEnd: { type: MarkerType.ArrowClosed, color: "white" },
         };
-
         setEdges((eds) => [...eds, newEdge]);
       }
 
@@ -627,10 +616,7 @@ function DiscoveryCanvas() {
           query,
           contextChain: [],
           depth,
-          settings: {
-            expansionsPerNode: 6,
-            maxAutoDepth: 10,
-          },
+          settings: { expansionsPerNode: 6, maxAutoDepth: 10 },
           userId: "user-1",
           sessionId,
         }),
@@ -638,7 +624,6 @@ function DiscoveryCanvas() {
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
-
       if (!reader) throw new Error("No reader");
 
       let completedNodeData: NodeData | null = null;
@@ -665,20 +650,14 @@ function DiscoveryCanvas() {
                   if (update.type === "summary_chunk") {
                     return {
                       ...node,
-                      data: {
-                        ...node.data,
-                        summary: update.chunk,
-                      },
+                      data: { ...node.data, summary: update.chunk },
                     };
                   }
 
                   if (update.type === "expansions_generated") {
                     return {
                       ...node,
-                      data: {
-                        ...node.data,
-                        expansions: update.expansions,
-                      },
+                      data: { ...node.data, expansions: update.expansions },
                     };
                   }
 
@@ -692,10 +671,7 @@ function DiscoveryCanvas() {
                       loading: false,
                     };
                     completedNodeData = updatedData;
-                    return {
-                      ...node,
-                      data: updatedData,
-                    };
+                    return { ...node, data: updatedData };
                   }
 
                   return node;
@@ -706,10 +682,7 @@ function DiscoveryCanvas() {
                 setEdges((eds) =>
                   eds.map((edge) => {
                     if (edge.id === `edge-${parentId}-${nodeId}`) {
-                      return {
-                        ...edge,
-                        animated: false,
-                      };
+                      return { ...edge, animated: false };
                     }
                     return edge;
                   })
@@ -734,6 +707,7 @@ function DiscoveryCanvas() {
         createMediaNodes(fakeNode, nodeId);
       }
 
+      // Initial auto-expand: depth 0 → depth 1 (always happens)
       if (
         completedNodeData &&
         depth === 0 &&
@@ -747,10 +721,7 @@ function DiscoveryCanvas() {
           autoExpandedRef.current.add(nodeId);
 
           setTimeout(() => {
-            const childPosition = {
-              x: position.x + 450,
-              y: position.y,
-            };
+            const childPosition = { x: position.x + 450, y: position.y };
 
             discoverMutation.mutate({
               query: autoExpandOption.query,
@@ -767,6 +738,113 @@ function DiscoveryCanvas() {
     },
   });
 
+  // Auto-expand function - finds deepest node and expands it
+  const autoExpand = useCallback(() => {
+    if (!isAutoPlaying || autoPlayState !== "playing") return;
+    if (discoverMutation.isPending) return;
+
+    console.log("[AutoExpand] Looking for node to expand...");
+
+    // Get all discovery nodes that are complete
+    const discoveryNodes = nodes.filter(
+      (n) => n.data.type === "discovery" && !n.data.loading
+    );
+
+    if (discoveryNodes.length < 2) {
+      console.log("[AutoExpand] Not enough nodes yet");
+      return;
+    }
+
+    // Find the deepest node
+    const deepestNode = discoveryNodes.reduce((deepest, current) => {
+      return current.data.depth > deepest.data.depth ? current : deepest;
+    });
+
+    console.log(
+      "[AutoExpand] Deepest node:",
+      deepestNode.id,
+      "at depth",
+      deepestNode.data.depth
+    );
+
+    // Check if this node has auto-expand option
+    const autoExpandOption = deepestNode.data.expansions?.find(
+      (exp) => exp.autoExpand
+    );
+
+    if (!autoExpandOption) {
+      console.log("[AutoExpand] No auto-expand option available, stopping");
+      setIsAutoPlaying(false);
+      setAutoPlayState("stopped");
+      return;
+    }
+
+    // Check if already expanded
+    if (autoExpandedRef.current.has(deepestNode.id)) {
+      console.log("[AutoExpand] Node already expanded");
+      return;
+    }
+
+    autoExpandedRef.current.add(deepestNode.id);
+
+    // Calculate position for new node (using handleExpansionClick logic)
+    const existingChildrenAtDepth = nodes.filter(
+      (n) =>
+        n.data.depth === deepestNode.data.depth + 1 &&
+        n.data.type === "discovery"
+    ).length;
+
+    const childPosition = {
+      x: deepestNode.position.x + 450,
+      y: deepestNode.position.y + existingChildrenAtDepth * 220,
+    };
+
+    console.log("[AutoExpand] Expanding with query:", autoExpandOption.query);
+    setAutoExpandCount((count) => count + 1);
+
+    discoverMutation.mutate({
+      query: autoExpandOption.query,
+      parentId: deepestNode.id,
+      depth: deepestNode.data.depth + 1,
+      position: childPosition,
+      autoExpanded: true,
+    });
+  }, [isAutoPlaying, autoPlayState, nodes, discoverMutation, autoExpandedRef]);
+
+  // Effect to trigger auto-expand
+  useEffect(() => {
+    if (
+      isAutoPlaying &&
+      autoPlayState === "playing" &&
+      !discoverMutation.isPending
+    ) {
+      const timer = setTimeout(() => {
+        autoExpand();
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [
+    isAutoPlaying,
+    autoPlayState,
+    discoverMutation.isPending,
+    autoExpand,
+    nodes,
+  ]);
+
+  const handleToggleAutoPlay = () => {
+    if (autoPlayState === "stopped") {
+      console.log("[AutoPlay] Starting auto-play");
+      setIsAutoPlaying(true);
+      setAutoPlayState("playing");
+      setAutoExpandCount(0);
+    } else {
+      console.log("[AutoPlay] Stopping auto-play");
+      setIsAutoPlaying(false);
+      setAutoPlayState("stopped");
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim() || discoverMutation.isPending) return;
@@ -776,25 +854,23 @@ function DiscoveryCanvas() {
         ? { x: 250, y: 100 }
         : { x: 250, y: nodes.length * 250 };
 
-    discoverMutation.mutate({
-      query: query.trim(),
-      depth: 0,
-      position,
-    });
+    // Reset auto-play state on new search
+    setIsAutoPlaying(false);
+    setAutoPlayState("stopped");
+    setAutoExpandCount(0);
+    autoExpandedRef.current.clear();
 
+    discoverMutation.mutate({ query: query.trim(), depth: 0, position });
     setQuery("");
   };
 
   const handleNodeClick = useCallback(
     (event: React.MouseEvent, node: Node<NodeData>) => {
-      // Discovery nodes open side panel
       if (node.data.type === "discovery") {
         setWebPreviewOpen(false);
         setSelectedNode(node);
         setSidePanelOpen(true);
-      }
-      // Custom nodes open web preview
-      else if (node.data.url) {
+      } else if (node.data.url) {
         handlePreviewClick(node.data.url, node.data.query);
       }
     },
@@ -825,6 +901,10 @@ function DiscoveryCanvas() {
     setSidePanelOpen(false);
   };
 
+  const discoveryNodeCount = nodes.filter(
+    (n) => n.data.type === "discovery"
+  ).length;
+
   return (
     <div className="relative h-screen w-full bg-[#080806]">
       <ReactFlow
@@ -841,33 +921,60 @@ function DiscoveryCanvas() {
         proOptions={{ hideAttribution: true }}
       >
         <Background gap={16} size={0.8} className="bg-[#0D0D0A]" />
-        {/* <Controls className="rounded-lg border border-border bg-background shadow-lg" /> */}
-        {/* <MiniMap
-          className="rounded-lg border border-border bg-background shadow-lg"
-          nodeColor={(node) => {
-            if (node.data?.loading) return "#f59e0b";
-            return getEdgeColorForType(node.type || "discovery");
-          }}
-        /> */}
 
-        <Panel position="top-center" className="pointer-events-none mt-4">
-          <div className="flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2 shadow-lg">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">
-              Discovered {nodes.length} {nodes.length === 1 ? "node" : "nodes"}
-            </span>
-            {/* <span className="text-xs text-muted-foreground">
-              {nodes.length} {nodes.length === 1 ? "node" : "nodes"}
-            </span> */}
+        {/* Auto-Expand Control Panel */}
+        <Panel position="top-center" className="pointer-events-auto mt-4">
+          <div className="flex items-center gap-3 rounded-full border border-white/10 bg-black/40 px-4 py-2 shadow-2xl backdrop-blur-2xl backdrop-saturate-150">
+            <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/5 to-transparent opacity-50 pointer-events-none" />
+
+            <div className="flex items-center gap-2 relative">
+              <Sparkles className="h-4 w-4 text-white" />
+              <div className="flex flex-col leading-2.5">
+                <span className="text-xs font-semibold text-white">
+                  {discoveryNodeCount} nodes
+                </span>
+                {autoExpandCount > 0 && (
+                  <span className="text-[10px] text-white/50">
+                    +{autoExpandCount} auto expanded
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="h-6 w-px bg-white/10" />
+
+            <div className="flex items-center gap-1.5 relative">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleToggleAutoPlay}
+                disabled={discoveryNodeCount < 2}
+                className={cn(
+                  "h-7 px-3 rounded-full backdrop-blur-sm text-xs font-medium",
+                  autoPlayState === "playing"
+                    ? "bg-stone-500/20 hover:bg-stone-500/30 text-stone-400"
+                    : "bg-white/10 hover:bg-white/20 text-white",
+                  "disabled:opacity-50 disabled:cursor-not-allowed"
+                )}
+              >
+                {autoPlayState === "playing" ? (
+                  <>
+                    <Square className="h-3 w-3 mr-1.5" /> Stop
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-3 w-3 mr-1.5" /> Auto-Loop
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </Panel>
       </ReactFlow>
 
       <div className="pointer-events-auto absolute bottom-0 left-0 right-0">
         <div className="mx-auto max-w-3xl p-4">
-          {/* Glass morphism container - darker variant */}
           <div className="relative rounded-[20px] border border-white/10 bg-black/40 p-1 shadow-2xl backdrop-blur-2xl backdrop-saturate-150">
-            {/* Inner glow effect */}
             <div className="absolute inset-0 rounded-[20px] bg-gradient-to-b from-white/5 to-transparent opacity-50" />
 
             <form onSubmit={handleSubmit} className="relative flex gap-2">
